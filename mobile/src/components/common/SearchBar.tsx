@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 
@@ -9,6 +9,10 @@ interface SearchBarProps {
   onChangeText?: (text: string) => void;
   onFilterPress?: () => void;
   showFilter?: boolean;
+  /** When false the input is non-interactive — used on Home where the whole bar is a nav button */
+  editable?: boolean;
+  /** Override the outer container style — useful when embedding in a custom row */
+  style?: ViewStyle;
 }
 
 /**
@@ -21,21 +25,20 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onChangeText,
   onFilterPress,
   showFilter = true,
+  editable = true,
+  style,
 }) => {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       {/* Input field */}
       <View style={styles.inputContainer}>
-        <Ionicons
-          name="search-outline"
-          size={20}
-          color={COLORS.text.tertiary}
-        />
+        <Ionicons name="search-outline" size={20} color={COLORS.text.tertiary} />
         <TextInput
           placeholder={placeholder}
           placeholderTextColor={COLORS.text.tertiary}
           value={value}
           onChangeText={onChangeText}
+          editable={editable}
           style={styles.input}
         />
       </View>
@@ -67,7 +70,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.backgroundSecondary,
-    borderRadius: 16,
+    borderRadius: 50,
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 10,
@@ -81,7 +84,7 @@ const styles = StyleSheet.create({
   filterButton: {
     width: 50,
     height: 50,
-    borderRadius: 16,
+    borderRadius: 50,
     backgroundColor: COLORS.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',

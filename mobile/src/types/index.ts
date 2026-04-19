@@ -1,4 +1,4 @@
-/** Product displayed in the shop grid */
+/** Product displayed in the shop grid and detail screen */
 export interface Product {
   id: string;
   brand: string;
@@ -6,6 +6,16 @@ export interface Product {
   price: number;
   image: string;
   isFavorite: boolean;
+  /** Additional images shown in the product detail gallery */
+  gallery?: string[];
+  /** Available color hex codes */
+  colors?: string[];
+  /** Available size options */
+  sizes?: string[];
+  /** Full product description */
+  description?: string;
+  /** Category slug this product belongs to */
+  category?: string;
 }
 
 /** Category chip shown on the home screen */

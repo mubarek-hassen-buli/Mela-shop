@@ -3,13 +3,35 @@ import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { CATEGORIES } from '@/constants/mockData';
 import { COLORS } from '@/constants/colors';
 
+interface CategoryChipsProps {
+  /** Override the default active category id */
+  activeId?: string;
+  /** Callback when a chip is selected — if omitted, internal state is used */
+  onSelect?: (id: string) => void;
+}
+
 /**
  * Horizontally-scrollable category chip list.
  * Active chip has a lime-green (#C8FF00) fill; inactive chips are
  * light-gray with dark text.
+ *
+ * Supports both controlled (activeId + onSelect) and uncontrolled usage.
  */
-export const CategoryChips: React.FC = () => {
-  const [activeCategoryId, setActiveCategoryId] = useState('1');
+export const CategoryChips: React.FC<CategoryChipsProps> = ({
+  activeId: controlledActiveId,
+  onSelect,
+}) => {
+  const [internalActiveId, setInternalActiveId] = useState('1');
+
+  const activeId = controlledActiveId ?? internalActiveId;
+
+  const handlePress = (id: string) => {
+    if (onSelect) {
+      onSelect(id);
+    } else {
+      setInternalActiveId(id);
+    }
+  };
 
   return (
     <ScrollView
@@ -18,11 +40,11 @@ export const CategoryChips: React.FC = () => {
       contentContainerStyle={styles.scrollContent}
     >
       {CATEGORIES.map((category) => {
-        const isActive = category.id === activeCategoryId;
+        const isActive = category.id === activeId;
         return (
           <TouchableOpacity
             key={category.id}
-            onPress={() => setActiveCategoryId(category.id)}
+            onPress={() => handlePress(category.id)}
             style={[styles.chip, isActive && styles.chipActive]}
             activeOpacity={0.7}
           >

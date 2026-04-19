@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/common/ScreenWrapper';
 import { Header } from '@/components/home/Header';
 import { SearchBar } from '@/components/common/SearchBar';
@@ -14,6 +15,8 @@ import { COLORS } from '@/constants/colors';
  * Header → SearchBar → PromoBanner → CategoryChips → ProductGrid
  */
 export default function HomeScreen() {
+  const router = useRouter();
+
   return (
     <ScreenWrapper>
       <Header />
@@ -22,7 +25,14 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <SearchBar />
+        {/* Tapping search bar navigates to the search screen */}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => router.push('/search')}
+        >
+          <SearchBar showFilter={false} editable={false} />
+        </TouchableOpacity>
+
         <PromoBanner />
         <CategoryChips />
 
@@ -35,7 +45,11 @@ export default function HomeScreen() {
         {/* 2-column product grid */}
         <View style={styles.productGrid}>
           {PRODUCTS.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              onPress={() => router.push(`/product/${product.id}`)}
+            />
           ))}
         </View>
       </ScrollView>
@@ -45,7 +59,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: 100, // room for the floating tab bar
+    paddingBottom: 100,
   },
   sectionHeader: {
     flexDirection: 'row',
