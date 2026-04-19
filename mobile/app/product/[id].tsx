@@ -16,6 +16,7 @@ import { SizeSelector } from '@/components/product/SizeSelector';
 import { BottomActionBar } from '@/components/product/BottomActionBar';
 import { getProductById } from '@/constants/mockData';
 import { COLORS } from '@/constants/colors';
+import { useCartStore } from '@/store/useCartStore';
 
 /**
  * Product Detail screen — shows a full gallery, product info,
@@ -128,7 +129,9 @@ export default function ProductDetailScreen() {
         onIncrement={() => setQuantity((q) => q + 1)}
         onDecrement={() => setQuantity((q) => Math.max(1, q - 1))}
         onAddToCart={() => {
-          /* TODO: integrate with cart store */
+          useCartStore.getState().addItem(product, selectedSize, selectedColor, quantity);
+          // Auto route to cart tab after addition
+          router.push('/(user)/cart');
         }}
       />
     </View>
