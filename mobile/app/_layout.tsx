@@ -1,0 +1,32 @@
+import { useEffect } from 'react';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+
+import '../global.css';
+
+// Keep the splash screen visible while we load resources
+SplashScreen.preventAutoHideAsync();
+
+/**
+ * Root layout — wraps the entire app with providers and the
+ * top-level Stack navigator. Auth and User route groups are
+ * registered as child stacks.
+ */
+export default function RootLayout() {
+  useEffect(() => {
+    // Hide splash once the layout is mounted
+    SplashScreen.hideAsync();
+  }, []);
+
+  return (
+    <>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(user)" />
+      </Stack>
+    </>
+  );
+}
