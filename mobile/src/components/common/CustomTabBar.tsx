@@ -95,15 +95,19 @@ export const CustomTabBar: React.FC<BottomTabBarProps> = ({
   /** Slide the bubble whenever the active index changes */
   useEffect(() => {
     if (slotWidth > 0 && activeConfig) {
-      // Center the bubble within the slot
       const slotCenter = state.index * slotWidth + slotWidth / 2;
       const targetWidth = activeConfig.bubbleWidth;
-      const targetLeft = slotCenter - targetWidth / 2;
+      let targetLeft = slotCenter - targetWidth / 2;
+
+      // Clamp so the bubble never overflows the container edges
+      const minLeft = BUBBLE_INSET;
+      const maxLeft = containerWidth - targetWidth - BUBBLE_INSET;
+      targetLeft = Math.max(minLeft, Math.min(targetLeft, maxLeft));
 
       bubbleLeft.value = withSpring(targetLeft, SPRING_CONFIG);
       bubbleWidth.value = withSpring(targetWidth, SPRING_CONFIG);
     }
-  }, [state.index, slotWidth, activeConfig, bubbleLeft, bubbleWidth]);
+  }, [state.index, slotWidth, containerWidth, activeConfig, bubbleLeft, bubbleWidth]);
 
   /** Animated style — both left and width animate */
   const bubbleStyle = useAnimatedStyle(() => ({
