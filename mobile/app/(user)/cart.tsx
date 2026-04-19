@@ -167,8 +167,8 @@ const styles = StyleSheet.create({
   bottomBar: {
     position: 'absolute',
     bottom: 110, // Float right above the iOS tab view bar
-    left: 16,
-    right: 16,
+    left: 32,
+    right: 32,
   },
   checkoutBtn: {
     backgroundColor: COLORS.black,

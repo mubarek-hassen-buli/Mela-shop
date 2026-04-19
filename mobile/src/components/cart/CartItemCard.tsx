@@ -73,8 +73,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 12,
     marginBottom: 16,
+    // Just a very subtle shadow this time
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: '#F3F4F6', // Lighter border instead of heavy shadows
+    borderColor: '#FAFAFA',
   },
   imageWrapper: {
     width: 72,
