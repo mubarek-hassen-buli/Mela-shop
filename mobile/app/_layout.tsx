@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import '../global.css';
 
@@ -9,9 +11,8 @@ import '../global.css';
 SplashScreen.preventAutoHideAsync();
 
 /**
- * Root layout — wraps the entire app with providers and the
- * top-level Stack navigator. Auth, User, Product, and Search
- * route groups are registered as child routes.
+ * Root layout — wraps the entire app with GestureHandlerRootView (required
+ * by @gorhom/bottom-sheet) and the top-level Stack navigator.
  */
 export default function RootLayout() {
   useEffect(() => {
@@ -19,7 +20,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <GestureHandlerRootView style={styles.root}>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         <Stack.Screen name="index" />
@@ -29,6 +30,10 @@ export default function RootLayout() {
         <Stack.Screen name="product/[id]" />
         <Stack.Screen name="search" />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});

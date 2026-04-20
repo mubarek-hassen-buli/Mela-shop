@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SearchBar } from '@/components/common/SearchBar';
 import { CategoryChips } from '@/components/home/CategoryChips';
 import { ProductCard } from '@/components/home/ProductCard';
+import { SortFilterModal, type FilterState } from '@/components/search/SortFilterModal';
 import { Ionicons } from '@expo/vector-icons';
 import { SEARCH_PRODUCTS, PRODUCTS, CATEGORIES } from '@/constants/mockData';
 import { COLORS } from '@/constants/colors';
@@ -25,6 +26,14 @@ export default function SearchScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('2'); // Jackets
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    category: 'All',
+    priceMin: 100,
+    priceMax: 650,
+    sortBy: 'Most Recent',
+    rating: 'All',
+  });
 
   /* Combine all products and filter by active category + search query */
   const allProducts: Product[] = [...PRODUCTS, ...SEARCH_PRODUCTS];
@@ -38,8 +47,28 @@ export default function SearchScreen() {
       ? p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.brand.toLowerCase().includes(searchQuery.toLowerCase())
       : true;
-    return matchesCategory && matchesQuery;
+    const matchesPrice = p.price >= filters.priceMin && p.price <= filters.priceMax;
+    return matchesCategory && matchesQuery && matchesPrice;
   });
+
+  /* Sort */
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (filters.sortBy === 'Price High') return b.price - a.price;
+    if (filters.sortBy === 'Price Low') return a.price - b.price;
+    return 0; // Popular / Most Recent — keep original order
+  });
+
+  const handleApplyFilters = useCallback((newFilters: FilterState) => {
+    setFilters(newFilters);
+
+    // If a specific category was chosen in the modal, try to sync chips
+    if (newFilters.category !== 'All') {
+      const matched = CATEGORIES.find(
+        (c) => c.name.toLowerCase() === newFilters.category.toLowerCase(),
+      );
+      if (matched) setActiveCategoryId(matched.id);
+    }
+  }, []);
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -58,6 +87,7 @@ export default function SearchScreen() {
           value={searchQuery}
           onChangeText={setSearchQuery}
           showFilter={true}
+          onFilterPress={() => setFilterModalVisible(true)}
           style={styles.searchBar}
         />
       </View>
@@ -76,9 +106,9 @@ export default function SearchScreen() {
         <Text style={styles.sectionTitle}>Top Sellers</Text>
 
         {/* 2-column product grid */}
-        {filteredProducts.length > 0 ? (
+        {sortedProducts.length > 0 ? (
           <View style={styles.productGrid}>
-            {filteredProducts.map((product) => (
+            {sortedProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -92,6 +122,14 @@ export default function SearchScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Sort & Filter Modal */}
+      <SortFilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={handleApplyFilters}
+        currentFilters={filters}
+      />
     </SafeAreaView>
   );
 }
