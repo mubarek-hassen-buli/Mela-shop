@@ -8,11 +8,11 @@ import React, {
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
 import BottomSheet, {
+  BottomSheetView,
   BottomSheetScrollView,
   BottomSheetBackdrop,
   type BottomSheetBackdropProps,
@@ -81,14 +81,31 @@ const Chip: React.FC<ChipProps> = ({ label, isSelected, onPress, icon }) => (
 );
 
 /* ──────────────────────────────────────────────────────────── */
+/*  Chip row — wrapping layout, no nested scroll                 */
+/* ──────────────────────────────────────────────────────────── */
+
+/**
+ * Renders chips in a wrapping flex row.
+ * Using flexWrap instead of a horizontal ScrollView avoids all gesture
+ * conflicts with the parent BottomSheetScrollView.
+ */
+const ChipRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <View style={styles.chipRow}>{children}</View>
+);
+
+/* ──────────────────────────────────────────────────────────── */
 /*  Sort & Filter Bottom Sheet                                   */
 /* ──────────────────────────────────────────────────────────── */
 
 /**
- * iOS-style Sort & Filter bottom sheet powered by @gorhom/bottom-sheet.
- * Features spring animations, a dimmed backdrop, and smooth gesture
- * dismiss. Contains: Categories, Price Range slider, Sort-by,
- * Rating, and Reset / Apply action buttons.
+ * iOS-style Sort & Filter bottom sheet using @gorhom/bottom-sheet.
+ *
+ * Architecture notes:
+ * - BottomSheetScrollView handles vertical scroll of the whole content.
+ * - Chip rows use flexWrap (no nested horizontal ScrollView) to avoid
+ *   gesture conflicts that cause the bounce/glitch behaviour.
+ * - Action buttons sit inside the scroll content at the bottom so they
+ *   are always fully visible regardless of device height.
  */
 export const SortFilterModal: React.FC<SortFilterModalProps> = ({
   visible,
@@ -97,16 +114,28 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
   currentFilters,
 }) => {
   const sheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['72%'], []);
 
-  // Local filter state
-  const [category, setCategory] = useState(currentFilters?.category ?? DEFAULT_FILTERS.category);
-  const [priceMin, setPriceMin] = useState(currentFilters?.priceMin ?? DEFAULT_FILTERS.priceMin);
-  const [priceMax, setPriceMax] = useState(currentFilters?.priceMax ?? DEFAULT_FILTERS.priceMax);
-  const [sortBy, setSortBy] = useState(currentFilters?.sortBy ?? DEFAULT_FILTERS.sortBy);
-  const [rating, setRating] = useState(currentFilters?.rating ?? DEFAULT_FILTERS.rating);
+  /* Single snap point at 90 % so all content is comfortably visible */
+  const snapPoints = useMemo(() => ['90%'], []);
 
-  /* Sync when parent supplies new filters */
+  /* ── Local filter state ── */
+  const [category, setCategory] = useState(
+    currentFilters?.category ?? DEFAULT_FILTERS.category,
+  );
+  const [priceMin, setPriceMin] = useState(
+    currentFilters?.priceMin ?? DEFAULT_FILTERS.priceMin,
+  );
+  const [priceMax, setPriceMax] = useState(
+    currentFilters?.priceMax ?? DEFAULT_FILTERS.priceMax,
+  );
+  const [sortBy, setSortBy] = useState(
+    currentFilters?.sortBy ?? DEFAULT_FILTERS.sortBy,
+  );
+  const [rating, setRating] = useState(
+    currentFilters?.rating ?? DEFAULT_FILTERS.rating,
+  );
+
+  /* Sync state when parent supplies updated filters */
   useEffect(() => {
     if (currentFilters) {
       setCategory(currentFilters.category);
@@ -117,7 +146,7 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
     }
   }, [currentFilters]);
 
-  /* Open / close the sheet when `visible` changes */
+  /* Open / close imperatively when `visible` changes */
   useEffect(() => {
     if (visible) {
       sheetRef.current?.snapToIndex(0);
@@ -152,7 +181,7 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
     setPriceMax(max);
   }, []);
 
-  /* ── Backdrop ── */
+  /* ── Dimmed backdrop ── */
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
@@ -178,21 +207,19 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
       handleIndicatorStyle={styles.handleIndicator}
       backgroundStyle={styles.sheetBackground}
     >
-      {/* Fixed title inside the sheet (outside scroll) */}
-      <Text style={styles.title}>Sort & Filter</Text>
+      {/* ── Fixed header: drag handle + title ── */}
+      <BottomSheetView style={styles.header}>
+        <Text style={styles.title}>Sort & Filter</Text>
+      </BottomSheetView>
 
-      {/* Scrollable section content */}
+      {/* ── Scrollable body ── */}
       <BottomSheetScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ── Categories ── */}
+        {/* Categories */}
         <Text style={styles.sectionLabel}>Categories</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
+        <ChipRow>
           {FILTER_CATEGORIES.map((cat) => (
             <Chip
               key={cat}
@@ -201,9 +228,9 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
               onPress={() => setCategory(cat)}
             />
           ))}
-        </ScrollView>
+        </ChipRow>
 
-        {/* ── Price Range ── */}
+        {/* Price Range */}
         <Text style={styles.sectionLabel}>Price Range</Text>
         <PriceRangeSlider
           minValue={priceMin}
@@ -211,13 +238,9 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
           onValuesChange={handlePriceChange}
         />
 
-        {/* ── Sort by ── */}
-        <Text style={[styles.sectionLabel, { marginTop: 28 }]}>Sort by</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
+        {/* Sort by */}
+        <Text style={[styles.sectionLabel, styles.sectionLabelSpaced]}>Sort by</Text>
+        <ChipRow>
           {SORT_OPTIONS.map((opt) => (
             <Chip
               key={opt}
@@ -226,15 +249,11 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
               onPress={() => setSortBy(opt)}
             />
           ))}
-        </ScrollView>
+        </ChipRow>
 
-        {/* ── Rating ── */}
+        {/* Rating */}
         <Text style={styles.sectionLabel}>Rating</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
+        <ChipRow>
           {RATING_OPTIONS.map((opt) => (
             <Chip
               key={opt}
@@ -246,35 +265,36 @@ export const SortFilterModal: React.FC<SortFilterModalProps> = ({
                   name="star"
                   size={13}
                   color={rating === opt ? COLORS.white : COLORS.black}
-                  style={{ marginRight: 4 }}
+                  style={styles.starIcon}
                 />
               }
             />
           ))}
-        </ScrollView>
+        </ChipRow>
 
-        {/* Bottom padding so content clears the action buttons */}
-        <View style={{ height: 100 }} />
+        {/* ── Action buttons inside the scroll so they are never clipped ── */}
+        <View style={styles.actionDivider} />
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.resetButton}
+            onPress={handleReset}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.resetButtonText}>Reset</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.applyButton}
+            onPress={handleApply}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.applyButtonText}>Apply</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Safe-area bottom padding */}
+        <View style={styles.bottomSpacer} />
       </BottomSheetScrollView>
-
-      {/* ── Fixed action row at the bottom ── */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.resetButton}
-          onPress={handleReset}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.resetButtonText}>Reset</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.applyButton}
-          onPress={handleApply}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.applyButtonText}>Apply</Text>
-        </TouchableOpacity>
-      </View>
     </BottomSheet>
   );
 };
@@ -301,14 +321,16 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 
-  /* ── Title ── */
+  /* ── Fixed header ── */
+  header: {
+    paddingBottom: 12,
+  },
   title: {
     fontSize: 22,
     fontWeight: '700',
     color: COLORS.text.primary,
     textAlign: 'center',
-    paddingTop: 12,
-    paddingBottom: 20,
+    paddingTop: 8,
     letterSpacing: -0.3,
   },
 
@@ -325,15 +347,18 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     marginTop: 20,
   },
-
-  /* ── Chip row ── */
-  chipsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingBottom: 4,
+  sectionLabelSpaced: {
+    marginTop: 28,
   },
 
-  /* ── Chips ── */
+  /* ── Chip row — wrapping, no horizontal scroll ── */
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  /* ── Individual chip ── */
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,21 +381,21 @@ const styles = StyleSheet.create({
   chipTextSelected: {
     color: COLORS.white,
   },
+  starIcon: {
+    marginRight: 4,
+  },
 
-  /* ── Action buttons ── */
+  /* ── Action row (inside scroll, not absolutely positioned) ── */
+  actionDivider: {
+    height: 1,
+    backgroundColor: COLORS.borderLight,
+    marginTop: 28,
+    marginBottom: 0,
+  },
   actionRow: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingTop: 14,
-    paddingBottom: 34,
+    paddingTop: 16,
     gap: 12,
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
   },
   resetButton: {
     flex: 1,
@@ -397,5 +422,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.white,
+  },
+  bottomSpacer: {
+    height: 24,
   },
 });
