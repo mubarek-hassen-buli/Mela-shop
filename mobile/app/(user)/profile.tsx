@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/common/ScreenWrapper';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
@@ -13,6 +14,7 @@ import { COLORS } from '@/constants/colors';
  * Invite Friends, Logout).
  */
 export default function ProfileScreen() {
+  const router = useRouter();
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   return (
@@ -37,7 +39,7 @@ export default function ProfileScreen() {
         <ProfileMenuItem
           icon="person-outline"
           label="Edit Profile"
-          onPress={() => {}}
+          onPress={() => router.push('/(user)/edit-profile')}
         />
 
         <ProfileMenuItem
