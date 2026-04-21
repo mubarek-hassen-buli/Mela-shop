@@ -17,10 +17,9 @@ export default function UserLayout() {
       <Tabs.Screen name="cart" options={{ title: 'Cart' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       {/* Hidden from the tab bar — navigated to via router.push */}
-      <Tabs.Screen
-        name="edit-profile"
-        options={{ title: 'Edit Profile', href: null }}
-      />
+      <Tabs.Screen name="edit-profile" options={{ title: 'Edit Profile', href: null }} />
+      <Tabs.Screen name="privacy-policy" options={{ title: 'Privacy Policy', href: null }} />
+      <Tabs.Screen name="help-center" options={{ title: 'Help Center', href: null }} />
     </Tabs>
   );
 }

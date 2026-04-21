@@ -43,37 +43,6 @@ export default function ProfileScreen() {
         />
 
         <ProfileMenuItem
-          icon="location-outline"
-          label="Address"
-          onPress={() => {}}
-        />
-
-        <ProfileMenuItem
-          icon="notifications-outline"
-          label="Notification"
-          onPress={() => {}}
-        />
-
-        <ProfileMenuItem
-          icon="card-outline"
-          label="Payment"
-          onPress={() => {}}
-        />
-
-        <ProfileMenuItem
-          icon="shield-checkmark-outline"
-          label="Security"
-          onPress={() => {}}
-        />
-
-        <ProfileMenuItem
-          icon="language-outline"
-          label="Language"
-          trailingText="English (US)"
-          onPress={() => {}}
-        />
-
-        <ProfileMenuItem
           icon="eye-outline"
           label="Dark Mode"
           isToggle
@@ -84,19 +53,13 @@ export default function ProfileScreen() {
         <ProfileMenuItem
           icon="lock-closed-outline"
           label="Privacy Policy"
-          onPress={() => {}}
+          onPress={() => router.push('/(user)/privacy-policy')}
         />
 
         <ProfileMenuItem
           icon="help-circle-outline"
           label="Help Center"
-          onPress={() => {}}
-        />
-
-        <ProfileMenuItem
-          icon="people-outline"
-          label="Invite Friends"
-          onPress={() => {}}
+          onPress={() => router.push('/(user)/help-center')}
         />
 
         {/* Logout button */}
