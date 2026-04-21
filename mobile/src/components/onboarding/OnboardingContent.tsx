@@ -12,7 +12,7 @@ export const OnboardingContent: React.FC = () => {
   const router = useRouter();
 
   const handleContinue = () => {
-    router.replace('/(user)');
+    router.push('/(auth)/sign-in');
   };
 
   return (
