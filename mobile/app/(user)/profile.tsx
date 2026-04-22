@@ -62,6 +62,13 @@ export default function ProfileScreen() {
           onPress={() => router.push('/(user)/help-center')}
         />
 
+        {/* Temporary admin shortcut — remove once role-based routing is wired */}
+        <ProfileMenuItem
+          icon="shield-checkmark-outline"
+          label="Admin Dashboard"
+          onPress={() => router.push('/(admin)')}
+        />
+
         {/* Logout button */}
         <TouchableOpacity
           style={styles.logoutButton}

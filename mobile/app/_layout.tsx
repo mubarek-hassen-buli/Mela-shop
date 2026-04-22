@@ -22,13 +22,35 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          // Default: hierarchical push — slides in from right, back slides out right.
+          animation: 'slide_from_right',
+        }}
+      >
+        {/* App entry point */}
         <Stack.Screen name="index" />
+
+        {/* Auth flow — sequential sign-in / sign-up journey */}
         <Stack.Screen name="(auth)" />
+
+        {/* Main app — standard user tab group */}
         <Stack.Screen name="(user)" />
-        {/* Full-screen modal routes — no bottom tab bar */}
+
+        {/* Admin dashboard — admin-only route group */}
+        <Stack.Screen name="(admin)" />
+
+        {/* Product detail — deep hierarchical navigation */}
         <Stack.Screen name="product/[id]" />
-        <Stack.Screen name="search" />
+
+        {/* Search — fade feels contextual rather than a directional push */}
+        <Stack.Screen name="search" options={{ animation: 'fade' }} />
+
+        {/* Auxiliary / settings screens — slide up from bottom (iOS sheet feel) */}
+        <Stack.Screen name="edit-profile"   options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="privacy-policy" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="help-center"    options={{ animation: 'slide_from_bottom' }} />
       </Stack>
     </GestureHandlerRootView>
   );
