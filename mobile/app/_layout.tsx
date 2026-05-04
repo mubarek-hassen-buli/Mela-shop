@@ -4,15 +4,24 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ClerkProvider, ClerkLoaded } from '@clerk/expo';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { tokenCache } from '@/lib/clerk';
+import { queryClient } from '@/lib/queryClient';
 
 import '../global.css';
 
 // Keep the splash screen visible while we load resources
 SplashScreen.preventAutoHideAsync();
 
+const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+
 /**
- * Root layout — wraps the entire app with GestureHandlerRootView (required
- * by @gorhom/bottom-sheet) and the top-level Stack navigator.
+ * Root layout — wraps the entire app with:
+ * 1. ClerkProvider — auth session management + token persistence
+ * 2. ClerkLoaded — waits for session check before rendering
+ * 3. QueryClientProvider — TanStack Query for server state
+ * 4. GestureHandlerRootView — required by @gorhom/bottom-sheet
  */
 export default function RootLayout() {
   useEffect(() => {
@@ -20,39 +29,47 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          // Default: hierarchical push — slides in from right, back slides out right.
-          animation: 'slide_from_right',
-        }}
-      >
-        {/* App entry point */}
-        <Stack.Screen name="index" />
+    <ClerkProvider
+      publishableKey={CLERK_PUBLISHABLE_KEY}
+      tokenCache={tokenCache}
+    >
+      <ClerkLoaded>
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style={styles.root}>
+            <StatusBar style="dark" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: 'slide_from_right',
+              }}
+            >
+              {/* App entry point */}
+              <Stack.Screen name="index" />
 
-        {/* Auth flow — sequential sign-in / sign-up journey */}
-        <Stack.Screen name="(auth)" />
+              {/* Auth flow — sequential sign-in / sign-up journey */}
+              <Stack.Screen name="(auth)" />
 
-        {/* Main app — standard user tab group */}
-        <Stack.Screen name="(user)" />
+              {/* Main app — standard user tab group */}
+              <Stack.Screen name="(user)" />
 
-        {/* Admin dashboard — admin-only route group */}
-        <Stack.Screen name="(admin)" />
+              {/* Admin dashboard — admin-only route group */}
+              <Stack.Screen name="(admin)" />
 
-        {/* Product detail — deep hierarchical navigation */}
-        <Stack.Screen name="product/[id]" />
+              {/* Product detail — deep hierarchical navigation */}
+              <Stack.Screen name="product/[id]" />
 
-        {/* Search — fade feels contextual rather than a directional push */}
-        <Stack.Screen name="search" options={{ animation: 'fade' }} />
+              {/* Search — fade feels contextual rather than a directional push */}
+              <Stack.Screen name="search" options={{ animation: 'fade' }} />
 
-        {/* Auxiliary / settings screens — slide up from bottom (iOS sheet feel) */}
-        <Stack.Screen name="edit-profile"   options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="privacy-policy" options={{ animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="help-center"    options={{ animation: 'slide_from_bottom' }} />
-      </Stack>
-    </GestureHandlerRootView>
+              {/* Auxiliary / settings screens — slide up from bottom (iOS sheet feel) */}
+              <Stack.Screen name="edit-profile" options={{ animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="privacy-policy" options={{ animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="help-center" options={{ animation: 'slide_from_bottom' }} />
+            </Stack>
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+      </ClerkLoaded>
+    </ClerkProvider>
   );
 }
 

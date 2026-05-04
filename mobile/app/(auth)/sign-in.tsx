@@ -7,8 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSignIn } from '@clerk/expo/legacy';
+import { useSSO } from '@clerk/expo';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthInput } from '@/components/auth/AuthInput';
@@ -17,20 +21,25 @@ import { GoogleButton } from '@/components/auth/GoogleButton';
 import { Button } from '@/components/common/Button';
 import { COLORS } from '@/constants/colors';
 
+// Required for web browser OAuth flow to close properly
+WebBrowser.maybeCompleteAuthSession();
+
 /** Basic email format check */
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 /**
- * Sign In screen.
+ * Sign In screen — wired to Clerk.
  *
- * UI-only — no auth integration yet. Validates the form locally and
- * navigates to the user home on success. Backend integration (Clerk)
- * will replace the handleSignIn body in a later phase.
+ * Supports:
+ * - Email + password sign-in via useSignIn()
+ * - Google OAuth sign-in via useSSO()
  */
 export default function SignInScreen() {
   const router = useRouter();
+  const { signIn, setActive, isLoaded: isSignInLoaded } = useSignIn();
+  const { startSSOFlow } = useSSO();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -66,26 +75,57 @@ export default function SignInScreen() {
     return valid;
   }, [email, password]);
 
-  /* ── Handlers ── */
-  const handleSignIn = useCallback(() => {
-    if (!validate()) return;
+  /* ── Email + Password Sign-In ── */
+  const handleSignIn = useCallback(async () => {
+    if (!validate() || !isSignInLoaded) return;
 
     setLoading(true);
-    // TODO: replace with Clerk sign-in call
-    setTimeout(() => {
-      setLoading(false);
-      router.replace('/(user)');
-    }, 1200);
-  }, [validate, router]);
+    try {
+      const result = await signIn.create({
+        identifier: email.trim(),
+        password,
+      });
 
-  const handleGoogleSignIn = useCallback(() => {
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        // index.tsx will detect isSignedIn and route accordingly
+      } else {
+        // Handle other statuses (MFA, etc.) if needed in the future
+        console.log('Sign-in status:', result.status);
+      }
+    } catch (error: any) {
+      const message =
+        error?.errors?.[0]?.longMessage ||
+        error?.errors?.[0]?.message ||
+        'Sign-in failed. Please try again.';
+      Alert.alert('Sign In Failed', message);
+    } finally {
+      setLoading(false);
+    }
+  }, [validate, isSignInLoaded, signIn, email, password, setActive]);
+
+  /* ── Google OAuth Sign-In ── */
+  const handleGoogleSignIn = useCallback(async () => {
+    if (googleLoading) return;
+
     setGoogleLoading(true);
-    // TODO: replace with Clerk Google OAuth flow
-    setTimeout(() => {
+    try {
+      const { createdSessionId, setActive: ssoSetActive } =
+        await startSSOFlow({ strategy: 'oauth_google' });
+
+      if (createdSessionId) {
+        await ssoSetActive!({ session: createdSessionId });
+        // index.tsx will detect isSignedIn and route accordingly
+      }
+    } catch (error: any) {
+      const message =
+        error?.errors?.[0]?.longMessage ||
+        'Google sign-in failed. Please try again.';
+      Alert.alert('Google Sign In Failed', message);
+    } finally {
       setGoogleLoading(false);
-      router.replace('/(user)');
-    }, 1200);
-  }, [router]);
+    }
+  }, [googleLoading, startSSOFlow]);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -181,20 +221,14 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  flex: {
-    flex: 1,
-  },
+  screen: { flex: 1, backgroundColor: COLORS.white },
+  flex: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 8,
     paddingBottom: 32,
   },
 
-  /* ── Back ── */
   backButton: {
     width: 44,
     height: 44,
@@ -206,10 +240,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
 
-  /* ── Header ── */
-  header: {
-    marginBottom: 36,
-  },
+  header: { marginBottom: 36 },
   greeting: {
     fontSize: 15,
     fontWeight: '500',
@@ -224,53 +255,26 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 12,
   },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    lineHeight: 20,
-  },
+  subtitle: { fontSize: 14, color: COLORS.text.secondary, lineHeight: 20 },
 
-  /* ── Form ── */
-  form: {
-    width: '100%',
-    marginBottom: 28,
-  },
-  fieldSpacing: {
-    marginTop: 14,
-  },
+  form: { width: '100%', marginBottom: 28 },
+  fieldSpacing: { marginTop: 14 },
   forgotWrapper: {
     alignSelf: 'flex-end',
     marginTop: 12,
     marginBottom: 24,
   },
-  forgotText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.black,
-  },
-  primaryButton: {
-    marginTop: 0,
-  },
+  forgotText: { fontSize: 14, fontWeight: '600', color: COLORS.black },
+  primaryButton: { marginTop: 0 },
 
-  /* ── Divider ── */
-  dividerWrapper: {
-    marginBottom: 20,
-  },
+  dividerWrapper: { marginBottom: 20 },
 
-  /* ── Footer ── */
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 28,
   },
-  footerText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.black,
-  },
+  footerText: { fontSize: 14, color: COLORS.text.secondary },
+  footerLink: { fontSize: 14, fontWeight: '700', color: COLORS.black },
 });

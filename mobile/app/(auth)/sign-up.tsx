@@ -7,15 +7,22 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSignUp } from '@clerk/expo/legacy';
+import { useSSO } from '@clerk/expo';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthDivider } from '@/components/auth/AuthDivider';
 import { GoogleButton } from '@/components/auth/GoogleButton';
+import { OTPVerification } from '@/components/auth/OTPVerification';
 import { Button } from '@/components/common/Button';
 import { COLORS } from '@/constants/colors';
+
+WebBrowser.maybeCompleteAuthSession();
 
 /** Basic email format check */
 function isValidEmail(email: string): boolean {
@@ -23,15 +30,20 @@ function isValidEmail(email: string): boolean {
 }
 
 /**
- * Sign Up screen.
+ * Sign Up screen — wired to Clerk.
  *
- * UI-only — no auth integration yet. Validates the form locally and
- * navigates to sign-in on success. Backend integration (Clerk) will
- * replace the handleSignUp body in a later phase.
+ * Flow:
+ * 1. User fills form → signUp.create()
+ * 2. Clerk sends OTP email → show OTPVerification component
+ * 3. User enters code → signUp.attemptEmailAddressVerification()
+ * 4. On success → setActive(session) → index.tsx routes by role
  */
 export default function SignUpScreen() {
   const router = useRouter();
+  const { signUp, setActive, isLoaded: isSignUpLoaded } = useSignUp();
+  const { startSSOFlow } = useSSO();
 
+  /* ── Form state ── */
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,6 +56,11 @@ export default function SignUpScreen() {
 
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  /* ── OTP verification state ── */
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
 
   /* ── Validation ── */
   const validate = useCallback((): boolean => {
@@ -92,27 +109,137 @@ export default function SignUpScreen() {
     return valid;
   }, [fullName, email, password, confirmPassword]);
 
-  /* ── Handlers ── */
-  const handleSignUp = useCallback(() => {
-    if (!validate()) return;
+  /* ── Email + Password Sign-Up ── */
+  const handleSignUp = useCallback(async () => {
+    if (!validate() || !isSignUpLoaded) return;
 
     setLoading(true);
-    // TODO: replace with Clerk sign-up call
-    setTimeout(() => {
+    try {
+      // Split full name into first + last
+      const nameParts = fullName.trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ') || undefined;
+
+      await signUp.create({
+        emailAddress: email.trim(),
+        password,
+        firstName,
+        lastName,
+      });
+
+      // Send OTP verification email
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setPendingVerification(true);
+    } catch (error: any) {
+      const message =
+        error?.errors?.[0]?.longMessage ||
+        error?.errors?.[0]?.message ||
+        'Sign-up failed. Please try again.';
+      Alert.alert('Sign Up Failed', message);
+    } finally {
       setLoading(false);
-      router.replace('/(auth)/sign-in');
-    }, 1200);
-  }, [validate, router]);
+    }
+  }, [validate, isSignUpLoaded, signUp, fullName, email, password]);
 
-  const handleGoogleSignUp = useCallback(() => {
+  /* ── OTP Verification ── */
+  const handleVerify = useCallback(
+    async (code: string) => {
+      if (!isSignUpLoaded) return;
+
+      setVerifyLoading(true);
+      setVerifyError('');
+      try {
+        const result = await signUp.attemptEmailAddressVerification({ code });
+
+        if (result.status === 'complete') {
+          await setActive({ session: result.createdSessionId });
+          // index.tsx will detect isSignedIn and route accordingly
+        } else {
+          console.log('Verification status:', result.status);
+        }
+      } catch (error: any) {
+        const message =
+          error?.errors?.[0]?.longMessage ||
+          error?.errors?.[0]?.message ||
+          'Invalid verification code.';
+        setVerifyError(message);
+      } finally {
+        setVerifyLoading(false);
+      }
+    },
+    [isSignUpLoaded, signUp, setActive],
+  );
+
+  /* ── Resend OTP ── */
+  const handleResend = useCallback(async () => {
+    if (!isSignUpLoaded) return;
+    try {
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to resend code. Please try again.');
+    }
+  }, [isSignUpLoaded, signUp]);
+
+  /* ── Google OAuth Sign-Up ── */
+  const handleGoogleSignUp = useCallback(async () => {
+    if (googleLoading) return;
+
     setGoogleLoading(true);
-    // TODO: replace with Clerk Google OAuth flow
-    setTimeout(() => {
-      setGoogleLoading(false);
-      router.replace('/(user)');
-    }, 1200);
-  }, [router]);
+    try {
+      const { createdSessionId, setActive: ssoSetActive } =
+        await startSSOFlow({ strategy: 'oauth_google' });
 
+      if (createdSessionId) {
+        await ssoSetActive!({ session: createdSessionId });
+      }
+    } catch (error: any) {
+      const message =
+        error?.errors?.[0]?.longMessage ||
+        'Google sign-up failed. Please try again.';
+      Alert.alert('Google Sign Up Failed', message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [googleLoading, startSSOFlow]);
+
+  /* ── OTP Verification view ── */
+  if (pendingVerification) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Back to form */}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setPendingVerification(false)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={22} color={COLORS.black} />
+            </TouchableOpacity>
+
+            <OTPVerification
+              email={email}
+              onVerify={handleVerify}
+              onResend={handleResend}
+              loading={verifyLoading}
+              error={verifyError}
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  /* ── Sign-Up form view ── */
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
@@ -226,20 +353,14 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  flex: {
-    flex: 1,
-  },
+  screen: { flex: 1, backgroundColor: COLORS.white },
+  flex: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 8,
     paddingBottom: 32,
   },
 
-  /* ── Back ── */
   backButton: {
     width: 44,
     height: 44,
@@ -251,10 +372,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
 
-  /* ── Header ── */
-  header: {
-    marginBottom: 32,
-  },
+  header: { marginBottom: 32 },
   greeting: {
     fontSize: 15,
     fontWeight: '500',
@@ -269,20 +387,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 12,
   },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    lineHeight: 20,
-  },
+  subtitle: { fontSize: 14, color: COLORS.text.secondary, lineHeight: 20 },
 
-  /* ── Form ── */
-  form: {
-    width: '100%',
-    marginBottom: 28,
-  },
-  fieldSpacing: {
-    marginTop: 14,
-  },
+  form: { width: '100%', marginBottom: 28 },
+  fieldSpacing: { marginTop: 14 },
   termsText: {
     fontSize: 13,
     color: COLORS.text.secondary,
@@ -291,33 +399,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
   },
-  termsLink: {
-    fontWeight: '700',
-    color: COLORS.black,
-  },
-  primaryButton: {
-    marginTop: 0,
-  },
+  termsLink: { fontWeight: '700', color: COLORS.black },
+  primaryButton: { marginTop: 0 },
 
-  /* ── Divider ── */
-  dividerWrapper: {
-    marginBottom: 20,
-  },
+  dividerWrapper: { marginBottom: 20 },
 
-  /* ── Footer ── */
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 28,
   },
-  footerText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.black,
-  },
+  footerText: { fontSize: 14, color: COLORS.text.secondary },
+  footerLink: { fontSize: 14, fontWeight: '700', color: COLORS.black },
 });

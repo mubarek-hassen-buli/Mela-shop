@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/common/ScreenWrapper';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileMenuItem } from '@/components/profile/ProfileMenuItem';
+import { useAuthStore } from '@/store/auth.store';
 import { COLORS } from '@/constants/colors';
 
 /**
@@ -15,7 +17,24 @@ import { COLORS } from '@/constants/colors';
  */
 export default function ProfileScreen() {
   const router = useRouter();
+  const { signOut } = useAuth();
+  const { role, clearAuth } = useAuthStore();
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const handleLogout = useCallback(() => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut();
+          clearAuth();
+          router.replace('/(auth)/onboarding');
+        },
+      },
+    ]);
+  }, [signOut, clearAuth, router]);
 
   return (
     <ScreenWrapper>
@@ -62,18 +81,20 @@ export default function ProfileScreen() {
           onPress={() => router.push('/(user)/help-center')}
         />
 
-        {/* Temporary admin shortcut — remove once role-based routing is wired */}
-        <ProfileMenuItem
-          icon="shield-checkmark-outline"
-          label="Admin Dashboard"
-          onPress={() => router.push('/(admin)')}
-        />
+        {/* Admin shortcut — only visible to admin-role users */}
+        {role === 'admin' && (
+          <ProfileMenuItem
+            icon="shield-checkmark-outline"
+            label="Admin Dashboard"
+            onPress={() => router.push('/(admin)')}
+          />
+        )}
 
         {/* Logout button */}
         <TouchableOpacity
           style={styles.logoutButton}
           activeOpacity={0.6}
-          onPress={() => {}}
+          onPress={handleLogout}
         >
           <View style={styles.logoutIconWrapper}>
             <Ionicons name="log-out-outline" size={22} color={COLORS.error} />

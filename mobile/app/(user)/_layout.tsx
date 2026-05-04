@@ -1,12 +1,20 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import type { ExternalPathString, RelativePathString } from 'expo-router';
+import { useAuth } from '@clerk/expo';
 import { CustomTabBar } from '@/components/common/CustomTabBar';
 
 /**
  * User route group — bottom-tab navigator with a custom floating
  * glassmorphism tab bar. Four tabs: Home, Categories, Cart, Profile.
+ *
+ * Guard: redirects to onboarding if the user is not signed in.
  */
 export default function UserLayout() {
+  const { isSignedIn } = useAuth();
+
+  if (!isSignedIn) {
+    return <Redirect href="/(auth)/onboarding" />;
+  }
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
