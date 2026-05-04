@@ -1,9 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+/**
+ * Card width = (screen width − 2 × horizontal margin − gap) / 2
+ * This guarantees exactly 2 cards per row in the parent flexWrap container
+ * whose style is: marginHorizontal: 20, gap: 12.
+ */
+const CARD_WIDTH =
+  (Dimensions.get('window').width - 40 - 12) / 2;
 
 interface StatCardProps {
   /** Metric label */
@@ -67,11 +75,10 @@ export const StatCard: React.FC<StatCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
+    width: CARD_WIDTH,
     backgroundColor: COLORS.backgroundSecondary,
     borderRadius: 20,
     padding: 16,
-    minWidth: '45%',
   },
   iconWrapper: {
     width: 44,
