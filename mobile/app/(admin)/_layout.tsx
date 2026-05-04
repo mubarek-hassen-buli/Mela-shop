@@ -20,6 +20,7 @@ export default function AdminLayout() {
       <Stack.Screen name="users/index" />
       <Stack.Screen name="users/[id]" />
       <Stack.Screen name="analytics" />
+      <Stack.Screen name="products" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="settings" />
     </Stack>

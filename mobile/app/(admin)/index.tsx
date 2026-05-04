@@ -81,6 +81,13 @@ const QUICK_ACTIONS: QuickAction[] = [
     description: 'App performance and growth metrics',
   },
   {
+    id: 'products',
+    label: 'Manage Products',
+    icon: 'shirt-outline',
+    route: '/(admin)/products',
+    description: 'View, edit and manage product catalogue',
+  },
+  {
     id: 'notifications',
     label: 'Broadcast',
     icon: 'megaphone-outline',
