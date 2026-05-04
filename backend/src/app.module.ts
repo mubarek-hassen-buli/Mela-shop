@@ -7,6 +7,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { ClerkAuthGuard } from './common/guards/clerk-auth.guard.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { WebhooksModule } from './modules/webhooks/webhooks.module.js';
+import { UploadModule } from './modules/upload/upload.module.js';
 
 /**
  * Root application module.
@@ -36,6 +37,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module.js';
     // Feature modules
     UsersModule,
     WebhooksModule,
+    UploadModule,
   ],
   providers: [
     // Apply ClerkAuthGuard to ALL routes globally

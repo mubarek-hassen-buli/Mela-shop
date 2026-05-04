@@ -76,10 +76,10 @@ export class UsersRepository {
     return updated;
   }
 
-  /** Update a user's profile (name, avatar) */
+  /** Update a user's profile (name, avatar, username, phone) */
   async updateProfile(
     clerkId: string,
-    data: { fullName?: string; avatarUrl?: string },
+    data: { fullName?: string; username?: string; phoneNumber?: string; avatarUrl?: string },
   ): Promise<User> {
     const [updated] = await this.database.db
       .update(users)

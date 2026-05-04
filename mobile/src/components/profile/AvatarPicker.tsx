@@ -5,67 +5,98 @@ import {
   StyleSheet,
   Alert,
   Platform,
-  ActionSheetIOS,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 
 interface AvatarPickerProps {
-  /** Current avatar URI — can be a remote URL or a local file:// URI */
-  uri?: string;
-  /** Called with the chosen local image URI after the user picks one */
-  onImagePicked: (uri: string) => void;
+  /** Current avatar URI — remote URL or local file:// URI */
+  uri?: string | null;
+  /** Called with the local file URI after the user picks an image */
+  onImagePicked: (uri: string, mimeType: string) => void;
+  /** Show a spinner overlay while an upload is in progress */
+  uploading?: boolean;
 }
 
 /**
  * Circular avatar with a camera-badge overlay.
  *
- * On press it shows an action sheet (native iOS sheet / Android alert)
- * with "Take Photo" and "Choose from Library" options.
- *
- * Image-picker integration is stubbed — replace the TODO bodies
- * with expo-image-picker calls when the package is installed.
+ * On press, shows an action sheet with "Take Photo" / "Choose from Library".
+ * Uses expo-image-picker — requests permissions automatically before launching.
  */
 export const AvatarPicker: React.FC<AvatarPickerProps> = ({
   uri,
   onImagePicked,
+  uploading = false,
 }) => {
-  const showOptions = () => {
-    const options = ['Take Photo', 'Choose from Library', 'Cancel'];
-
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: 2,
-          title: 'Change Profile Photo',
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 0) handleCamera();
-          if (buttonIndex === 1) handleLibrary();
-        },
+  /* ── Permission helpers ── */
+  const requestCameraPermission = async (): Promise<boolean> => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Camera Permission Required',
+        'Please allow camera access in your device settings.',
       );
-    } else {
-      // Android fallback — simple Alert
-      Alert.alert('Change Profile Photo', undefined, [
-        { text: 'Take Photo', onPress: handleCamera },
-        { text: 'Choose from Library', onPress: handleLibrary },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
+      return false;
+    }
+    return true;
+  };
+
+  const requestLibraryPermission = async (): Promise<boolean> => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Photo Library Permission Required',
+        'Please allow photo library access in your device settings.',
+      );
+      return false;
+    }
+    return true;
+  };
+
+  /* ── Image picker launchers ── */
+  const handleCamera = async () => {
+    if (!(await requestCameraPermission())) return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      onImagePicked(asset.uri, asset.mimeType ?? 'image/jpeg');
     }
   };
 
-  const handleCamera = () => {
-    // TODO: launch expo-image-picker camera
-    // const result = await ImagePicker.launchCameraAsync({ ... });
-    // if (!result.canceled) onImagePicked(result.assets[0].uri);
+  const handleLibrary = async () => {
+    if (!(await requestLibraryPermission())) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      onImagePicked(asset.uri, asset.mimeType ?? 'image/jpeg');
+    }
   };
 
-  const handleLibrary = () => {
-    // TODO: launch expo-image-picker media library
-    // const result = await ImagePicker.launchImageLibraryAsync({ ... });
-    // if (!result.canceled) onImagePicked(result.assets[0].uri);
+  /* ── Action sheet ── */
+  const showOptions = () => {
+    Alert.alert('Change Profile Photo', undefined, [
+      { text: 'Take Photo', onPress: handleCamera },
+      { text: 'Choose from Library', onPress: handleLibrary },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   return (
@@ -73,6 +104,7 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
       style={styles.container}
       onPress={showOptions}
       activeOpacity={0.85}
+      disabled={uploading}
     >
       {/* Avatar image */}
       <View style={styles.avatarRing}>
@@ -88,10 +120,17 @@ export const AvatarPicker: React.FC<AvatarPickerProps> = ({
             <Ionicons name="person" size={52} color={COLORS.text.tertiary} />
           </View>
         )}
+
+        {/* Upload spinner overlay */}
+        {uploading && (
+          <View style={styles.uploadingOverlay}>
+            <ActivityIndicator size="small" color={COLORS.white} />
+          </View>
+        )}
       </View>
 
       {/* Camera badge */}
-      <View style={styles.cameraBadge}>
+      <View style={[styles.cameraBadge, uploading && styles.cameraBadgeDimmed]}>
         <Ionicons name="camera" size={16} color={COLORS.white} />
       </View>
     </TouchableOpacity>
@@ -122,6 +161,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cameraBadge: {
     position: 'absolute',
     bottom: 4,
@@ -134,5 +179,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2.5,
     borderColor: COLORS.white,
+  },
+  cameraBadgeDimmed: {
+    opacity: 0.5,
   },
 });

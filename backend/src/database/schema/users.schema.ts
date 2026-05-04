@@ -1,11 +1,13 @@
 import { pgTable, serial, text, boolean, timestamp } from 'drizzle-orm/pg-core';
 
 /**
- * Users table — mirrors Clerk users with a local `role` field.
+ * Users table — mirrors Clerk users with local profile fields.
  *
- * Clerk manages authentication (email, password, OAuth). This table
- * stores the subset of user data the app needs for authorisation and
- * profile display. Synced via Clerk webhooks (user.created / user.updated).
+ * Clerk manages authentication. This table stores the subset of
+ * user data the app needs for authorisation, profile display,
+ * and user-editable fields (username, phone).
+ *
+ * Synced on first login via Clerk API and on updates via webhooks.
  */
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -15,6 +17,14 @@ export const users = pgTable('users', {
 
   email: text('email').unique().notNull(),
   fullName: text('full_name'),
+
+  /** Chosen by the user — unique handle (optional) */
+  username: text('username').unique(),
+
+  /** E.164 phone number, e.g. "+1 111 467 378" (optional) */
+  phoneNumber: text('phone_number'),
+
+  /** Cloudinary URL for the profile photo */
   avatarUrl: text('avatar_url'),
 
   /** Application role — 'user' (default) or 'admin' */

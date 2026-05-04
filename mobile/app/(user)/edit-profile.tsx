@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,43 +10,33 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@clerk/expo';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AvatarPicker } from '@/components/profile/AvatarPicker';
 import { EditProfileField } from '@/components/profile/EditProfileField';
 import { Button } from '@/components/common/Button';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { uploadAvatar, updateMe } from '@/api/users.api';
 import { COLORS } from '@/constants/colors';
+import type { AuthUser } from '@/store/auth.store';
 
-/* ──────────────────────────────────────────────────────────── */
-/*  Types                                                        */
-/* ──────────────────────────────────────────────────────────── */
+/* ── Types ─────────────────────────────────────────────────── */
 
 interface ProfileForm {
   fullName: string;
   username: string;
-  email: string;
-  phone: string;
+  phoneNumber: string;
 }
 
 interface FormErrors {
   fullName?: string;
   username?: string;
-  phone?: string;
+  phoneNumber?: string;
 }
 
-/* ──────────────────────────────────────────────────────────── */
-/*  Helpers                                                      */
-/* ──────────────────────────────────────────────────────────── */
-
-const INITIAL_FORM: ProfileForm = {
-  fullName: 'Andrew Ainsley',
-  username: 'andrew_ainsley',
-  email: 'andrew.ainsley@email.com',
-  phone: '+1 111 467 378 399',
-};
-
-const AVATAR_URL =
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face';
+/* ── Validation ─────────────────────────────────────────────── */
 
 function validateForm(form: ProfileForm): FormErrors {
   const errors: FormErrors = {};
@@ -57,51 +47,118 @@ function validateForm(form: ProfileForm): FormErrors {
     errors.fullName = 'Name must be at least 2 characters.';
   }
 
-  if (!form.username.trim()) {
-    errors.username = 'Username is required.';
-  } else if (!/^[a-z0-9_]{3,20}$/.test(form.username)) {
+  if (form.username && !/^[a-z0-9_]{3,20}$/.test(form.username)) {
     errors.username = 'Lowercase letters, numbers and underscores only (3–20 chars).';
   }
 
-  if (!form.phone.trim()) {
-    errors.phone = 'Phone number is required.';
+  if (form.phoneNumber && form.phoneNumber.trim().length < 5) {
+    errors.phoneNumber = 'Enter a valid phone number.';
   }
 
   return errors;
 }
 
-/* ──────────────────────────────────────────────────────────── */
-/*  Screen                                                       */
-/* ──────────────────────────────────────────────────────────── */
+/* ── Screen ─────────────────────────────────────────────────── */
 
 /**
- * Edit Profile screen.
+ * Edit Profile screen — fully wired to the backend.
  *
- * Lets the user update their avatar, full name, username, and phone.
- * Email is read-only (managed by the auth provider).
- *
- * UI-only — form is validated locally and a success alert is shown.
- * Clerk + backend integration will replace the handleSave body later.
+ * Flow:
+ * 1. Pre-populates form from the Zustand auth store (instant, no flicker)
+ * 2. If user picks a new avatar:
+ *    a. Upload to Cloudinary via POST /api/upload/avatar
+ *    b. Receive the Cloudinary URL
+ * 3. On "Save Changes":
+ *    a. Validate form
+ *    b. PATCH /api/users/me with updated fields
+ *    c. Invalidates the TanStack Query cache → profile refreshes
  */
 export default function EditProfileScreen() {
   const router = useRouter();
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+  const { user } = useCurrentUser();
 
-  const [avatarUri, setAvatarUri] = useState<string>(AVATAR_URL);
-  const [form, setForm] = useState<ProfileForm>(INITIAL_FORM);
+  /* ── Local state ── */
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [pendingAvatarUrl, setPendingAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [form, setForm] = useState<ProfileForm>({
+    fullName: '',
+    username: '',
+    phoneNumber: '',
+  });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [loading, setLoading] = useState(false);
 
-  /* Generic field updater */
+  /* ── Pre-populate form from store when user data is available ── */
+  useEffect(() => {
+    if (user) {
+      setForm({
+        fullName: user.fullName ?? '',
+        username: user.username ?? '',
+        phoneNumber: user.phoneNumber ?? '',
+      });
+      setAvatarUri(user.avatarUrl ?? null);
+    }
+  }, [user?.clerkId]); // Only re-run when the user identity changes
+
+  /* ── Generic field updater ── */
   const setField = useCallback(
-    (key: keyof ProfileForm) => (value: string) => {
-      setForm((prev) => ({ ...prev, [key]: value }));
-      // Clear the error for this field as the user types
-      setErrors((prev) => ({ ...prev, [key]: undefined }));
-    },
+    (key: keyof ProfileForm) =>
+      (value: string) => {
+        setForm((prev) => ({ ...prev, [key]: value }));
+        setErrors((prev) => ({ ...prev, [key]: undefined }));
+      },
     [],
   );
 
-  /* Save handler */
+  /* ── Avatar: pick → upload → store Cloudinary URL ── */
+  const handleImagePicked = useCallback(
+    async (uri: string, mimeType: string) => {
+      setAvatarUri(uri); // Show preview immediately
+      setAvatarUploading(true);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error('No auth token');
+        const cloudinaryUrl = await uploadAvatar(token, uri, mimeType);
+        setPendingAvatarUrl(cloudinaryUrl);
+      } catch (err) {
+        Alert.alert('Upload Failed', 'Could not upload your photo. Please try again.');
+        // Revert preview to the original
+        setAvatarUri(user?.avatarUrl ?? null);
+      } finally {
+        setAvatarUploading(false);
+      }
+    },
+    [getToken, user?.avatarUrl],
+  );
+
+  /* ── Save mutation ── */
+  const { mutate: saveProfile, isPending: saving } = useMutation({
+    mutationFn: async (payload: Partial<AuthUser>) => {
+      const token = await getToken();
+      if (!token) throw new Error('No auth token');
+      return updateMe(token, {
+        fullName: payload.fullName ?? undefined,
+        username: payload.username ?? undefined,
+        phoneNumber: payload.phoneNumber ?? undefined,
+        avatarUrl: payload.avatarUrl ?? undefined,
+      });
+    },
+    onSuccess: () => {
+      // Invalidate the profile cache so useCurrentUser refetches
+      queryClient.invalidateQueries({ queryKey: ['users', 'me'] });
+      Alert.alert('Profile Updated', 'Your changes have been saved.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    },
+    onError: (err: any) => {
+      const message =
+        err?.response?.data?.message ?? 'Could not save profile. Please try again.';
+      Alert.alert('Save Failed', message);
+    },
+  });
+
   const handleSave = useCallback(() => {
     const validationErrors = validateForm(form);
     if (Object.keys(validationErrors).length > 0) {
@@ -109,17 +166,20 @@ export default function EditProfileScreen() {
       return;
     }
 
-    setLoading(true);
-    // TODO: PATCH /users/me via Clerk + backend
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert('Success', 'Your profile has been updated.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
-    }, 1200);
-  }, [form, router]);
+    if (avatarUploading) {
+      Alert.alert('Please wait', 'Your photo is still uploading.');
+      return;
+    }
 
-  /* Discard changes guard */
+    saveProfile({
+      fullName: form.fullName.trim() || undefined,
+      username: form.username.trim() || undefined,
+      phoneNumber: form.phoneNumber.trim() || undefined,
+      avatarUrl: pendingAvatarUrl ?? user?.avatarUrl ?? undefined,
+    });
+  }, [form, avatarUploading, pendingAvatarUrl, user?.avatarUrl, saveProfile]);
+
+  /* ── Discard guard ── */
   const handleBack = useCallback(() => {
     Alert.alert(
       'Discard Changes?',
@@ -150,7 +210,6 @@ export default function EditProfileScreen() {
 
           <Text style={styles.navTitle}>Edit Profile</Text>
 
-          {/* Invisible spacer — keeps the title perfectly centred */}
           <View style={styles.navSpacer} />
         </View>
 
@@ -164,12 +223,15 @@ export default function EditProfileScreen() {
           <View style={styles.avatarSection}>
             <AvatarPicker
               uri={avatarUri}
-              onImagePicked={setAvatarUri}
+              onImagePicked={handleImagePicked}
+              uploading={avatarUploading}
             />
-            <Text style={styles.changePhotoHint}>Tap to change photo</Text>
+            <Text style={styles.changePhotoHint}>
+              {avatarUploading ? 'Uploading photo…' : 'Tap to change photo'}
+            </Text>
           </View>
 
-          {/* ── Divider ── */}
+          {/* ── Section heading ── */}
           <View style={styles.sectionDivider}>
             <Text style={styles.sectionTitle}>Personal Information</Text>
           </View>
@@ -191,16 +253,17 @@ export default function EditProfileScreen() {
               icon="at-outline"
               value={form.username}
               onChangeText={setField('username')}
-              placeholder="your_username"
+              placeholder="your_username (optional)"
               autoCapitalize="none"
               error={errors.username}
             />
 
+            {/* Email is read-only — managed by Clerk */}
             <EditProfileField
               label="Email Address"
               icon="mail-outline"
-              value={form.email}
-              onChangeText={setField('email')}
+              value={user?.email ?? ''}
+              onChangeText={() => {}}
               keyboardType="email-address"
               autoCapitalize="none"
               readOnly
@@ -209,11 +272,12 @@ export default function EditProfileScreen() {
             <EditProfileField
               label="Phone Number"
               icon="call-outline"
-              value={form.phone}
-              onChangeText={setField('phone')}
+              value={form.phoneNumber}
+              onChangeText={setField('phoneNumber')}
+              placeholder="+1 234 567 8900 (optional)"
               keyboardType="phone-pad"
               autoCapitalize="none"
-              error={errors.phone}
+              error={errors.phoneNumber}
             />
           </View>
 
@@ -222,7 +286,7 @@ export default function EditProfileScreen() {
             <Button
               title="Save Changes"
               onPress={handleSave}
-              loading={loading}
+              loading={saving || avatarUploading}
             />
           </View>
         </ScrollView>
@@ -231,20 +295,12 @@ export default function EditProfileScreen() {
   );
 }
 
-/* ──────────────────────────────────────────────────────────── */
-/*  Styles                                                       */
-/* ──────────────────────────────────────────────────────────── */
+/* ── Styles ─────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  flex: {
-    flex: 1,
-  },
+  screen: { flex: 1, backgroundColor: COLORS.white },
+  flex: { flex: 1 },
 
-  /* ── Navigation bar ── */
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,10 +320,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navSpacer: {
-    width: 44,
-    height: 44,
-  },
+  navSpacer: { width: 44, height: 44 },
   navTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -275,7 +328,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
 
-  /* ── Avatar section ── */
   avatarSection: {
     alignItems: 'center',
     paddingTop: 28,
@@ -288,7 +340,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  /* ── Section divider ── */
   sectionDivider: {
     paddingHorizontal: 24,
     paddingTop: 24,
@@ -305,17 +356,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  /* ── Form ── */
-  formSection: {
-    paddingHorizontal: 24,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-
-  /* ── Save button ── */
-  saveButtonWrapper: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
+  formSection: { paddingHorizontal: 24 },
+  scrollContent: { paddingBottom: 40 },
+  saveButtonWrapper: { paddingHorizontal: 24, paddingTop: 16 },
 });

@@ -7,6 +7,8 @@ export interface AuthUser {
   clerkId: string;
   email: string;
   fullName: string | null;
+  username: string | null;
+  phoneNumber: string | null;
   avatarUrl: string | null;
   role: AppRole;
   isActive: boolean;
