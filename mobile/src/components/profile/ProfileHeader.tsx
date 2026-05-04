@@ -15,6 +15,10 @@ interface ProfileHeaderProps {
   onEditAvatar?: () => void;
   /** Called when the "more" button (top-right) is pressed */
   onMorePress?: () => void;
+  /** Called when the refresh icon is pressed */
+  onRefresh?: () => void;
+  /** Whether a refresh is currently in progress */
+  isRefreshing?: boolean;
 }
 
 /**
@@ -28,15 +32,26 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   email,
   onEditAvatar,
   onMorePress,
+  onRefresh,
+  isRefreshing = false,
 }) => {
   return (
     <View style={styles.wrapper}>
       {/* Top row: title + More button */}
       <View style={styles.topRow}>
         <View style={styles.titleRow}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="sync-outline" size={18} color={COLORS.black} />
-          </View>
+          <TouchableOpacity
+            style={styles.logoBadge}
+            activeOpacity={0.7}
+            onPress={onRefresh}
+            disabled={isRefreshing}
+          >
+            <Ionicons 
+              name="sync-outline" 
+              size={18} 
+              color={isRefreshing ? COLORS.text.tertiary : COLORS.black} 
+            />
+          </TouchableOpacity>
           <Text style={styles.title}>Profile</Text>
         </View>
 

@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AvatarPicker } from '@/components/profile/AvatarPicker';
 import { EditProfileField } from '@/components/profile/EditProfileField';
 import { Button } from '@/components/common/Button';
-import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useAuthStore } from '@/store/auth.store';
 import { uploadAvatar, updateMe } from '@/api/users.api';
 import { COLORS } from '@/constants/colors';
 import type { AuthUser } from '@/store/auth.store';
@@ -77,7 +77,10 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
-  const { user } = useCurrentUser();
+  // Read directly from the store — no live subscription needed here.
+  // Using useCurrentUser() would share the query with profile.tsx and
+  // cause re-renders (+ form resets) while the user is typing.
+  const { user } = useAuthStore();
 
   /* ── Local state ── */
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -102,15 +105,21 @@ export default function EditProfileScreen() {
     }
   }, [user?.clerkId]); // Only re-run when the user identity changes
 
-  /* ── Generic field updater ── */
-  const setField = useCallback(
-    (key: keyof ProfileForm) =>
-      (value: string) => {
-        setForm((prev) => ({ ...prev, [key]: value }));
-        setErrors((prev) => ({ ...prev, [key]: undefined }));
-      },
-    [],
-  );
+  /* ── Field updaters (Memoized to prevent TextInput cursor jump) ── */
+  const handleFullNameChange = useCallback((text: string) => {
+    setForm((prev) => ({ ...prev, fullName: text }));
+    setErrors((prev) => ({ ...prev, fullName: undefined }));
+  }, []);
+
+  const handleUsernameChange = useCallback((text: string) => {
+    setForm((prev) => ({ ...prev, username: text }));
+    setErrors((prev) => ({ ...prev, username: undefined }));
+  }, []);
+
+  const handlePhoneChange = useCallback((text: string) => {
+    setForm((prev) => ({ ...prev, phoneNumber: text }));
+    setErrors((prev) => ({ ...prev, phoneNumber: undefined }));
+  }, []);
 
   /* ── Avatar: pick → upload → store Cloudinary URL ── */
   const handleImagePicked = useCallback(
@@ -191,108 +200,118 @@ export default function EditProfileScreen() {
     );
   }, [router]);
 
-  return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
+  const screenContent = (
+    <View style={styles.flex}>
+      {/* ── Navigation header ── */}
+      <View style={styles.navBar}>
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color={COLORS.black} />
+        </TouchableOpacity>
+
+        <Text style={styles.navTitle}>Edit Profile</Text>
+
+        <View style={styles.navSpacer} />
+      </View>
+
+      <ScrollView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {/* ── Navigation header ── */}
-        <View style={styles.navBar}>
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={22} color={COLORS.black} />
-          </TouchableOpacity>
-
-          <Text style={styles.navTitle}>Edit Profile</Text>
-
-          <View style={styles.navSpacer} />
+        {/* ── Avatar ── */}
+        <View style={styles.avatarSection}>
+          <AvatarPicker
+            uri={avatarUri}
+            onImagePicked={handleImagePicked}
+            uploading={avatarUploading}
+          />
+          <Text style={styles.changePhotoHint}>
+            {avatarUploading ? 'Uploading photo…' : 'Tap to change photo'}
+          </Text>
         </View>
 
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Avatar ── */}
-          <View style={styles.avatarSection}>
-            <AvatarPicker
-              uri={avatarUri}
-              onImagePicked={handleImagePicked}
-              uploading={avatarUploading}
-            />
-            <Text style={styles.changePhotoHint}>
-              {avatarUploading ? 'Uploading photo…' : 'Tap to change photo'}
-            </Text>
-          </View>
+        {/* ── Section heading ── */}
+        <View style={styles.sectionDivider}>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+        </View>
 
-          {/* ── Section heading ── */}
-          <View style={styles.sectionDivider}>
-            <Text style={styles.sectionTitle}>Personal Information</Text>
-          </View>
+        {/* ── Form fields ── */}
+        <View style={styles.formSection}>
+          <EditProfileField
+            label="Full Name"
+            icon="person-outline"
+            value={form.fullName}
+            onChangeText={handleFullNameChange}
+            placeholder="Your full name"
+            autoCapitalize="words"
+            error={errors.fullName}
+          />
 
-          {/* ── Form fields ── */}
-          <View style={styles.formSection}>
-            <EditProfileField
-              label="Full Name"
-              icon="person-outline"
-              value={form.fullName}
-              onChangeText={setField('fullName')}
-              placeholder="Your full name"
-              autoCapitalize="words"
-              error={errors.fullName}
-            />
+          <EditProfileField
+            label="Username"
+            icon="at-outline"
+            value={form.username}
+            onChangeText={handleUsernameChange}
+            placeholder="your_username (optional)"
+            autoCapitalize="none"
+            error={errors.username}
+          />
 
-            <EditProfileField
-              label="Username"
-              icon="at-outline"
-              value={form.username}
-              onChangeText={setField('username')}
-              placeholder="your_username (optional)"
-              autoCapitalize="none"
-              error={errors.username}
-            />
+          {/* Email is read-only — managed by Clerk */}
+          <EditProfileField
+            label="Email Address"
+            icon="mail-outline"
+            value={user?.email ?? ''}
+            onChangeText={() => {}}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            readOnly
+          />
 
-            {/* Email is read-only — managed by Clerk */}
-            <EditProfileField
-              label="Email Address"
-              icon="mail-outline"
-              value={user?.email ?? ''}
-              onChangeText={() => {}}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              readOnly
-            />
+          <EditProfileField
+            label="Phone Number"
+            icon="call-outline"
+            value={form.phoneNumber}
+            onChangeText={handlePhoneChange}
+            placeholder="+1 234 567 8900 (optional)"
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+            error={errors.phoneNumber}
+          />
+        </View>
 
-            <EditProfileField
-              label="Phone Number"
-              icon="call-outline"
-              value={form.phoneNumber}
-              onChangeText={setField('phoneNumber')}
-              placeholder="+1 234 567 8900 (optional)"
-              keyboardType="phone-pad"
-              autoCapitalize="none"
-              error={errors.phoneNumber}
-            />
-          </View>
+        {/* ── Save button ── */}
+        <View style={styles.saveButtonWrapper}>
+          <Button
+            title="Save Changes"
+            onPress={handleSave}
+            loading={saving || avatarUploading}
+          />
+        </View>
+      </ScrollView>
+    </View>
+  );
 
-          {/* ── Save button ── */}
-          <View style={styles.saveButtonWrapper}>
-            <Button
-              title="Save Changes"
-              onPress={handleSave}
-              loading={saving || avatarUploading}
-            />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+  return (
+    // edges={['top']} is critical on Android to stop the bottom inset from 
+    // jumping when the keyboard opens and resizes the window.
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      {Platform.OS === 'ios' ? (
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          {screenContent}
+        </KeyboardAvoidingView>
+      ) : (
+        // Android natively uses adjustResize, KeyboardAvoidingView here causes double-jumps
+        <View style={styles.flex}>{screenContent}</View>
+      )}
     </SafeAreaView>
   );
+
 }
 
 /* ── Styles ─────────────────────────────────────────────────── */

@@ -30,7 +30,7 @@ import { COLORS } from '@/constants/colors';
 export default function ProfileScreen() {
   const router = useRouter();
   const { role } = useAuthStore();
-  const { user, isLoading } = useCurrentUser();
+  const { user, isLoading, refetch } = useCurrentUser();
   const { confirmLogout, loading: logoutLoading } = useLogout();
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -50,8 +50,10 @@ export default function ProfileScreen() {
             avatarUrl={user?.avatarUrl ?? undefined}
             fullName={user?.fullName ?? 'My Account'}
             email={user?.email ?? ''}
-            onEditAvatar={() => router.push('/(user)/edit-profile')}
+            onEditAvatar={() => router.push('/edit-profile')}
             onMorePress={() => {}}
+            onRefresh={refetch}
+            isRefreshing={isLoading}
           />
         )}
 
@@ -62,7 +64,7 @@ export default function ProfileScreen() {
         <ProfileMenuItem
           icon="person-outline"
           label="Edit Profile"
-          onPress={() => router.push('/(user)/edit-profile')}
+          onPress={() => router.push('/edit-profile')}
         />
 
         <ProfileMenuItem
@@ -76,13 +78,13 @@ export default function ProfileScreen() {
         <ProfileMenuItem
           icon="lock-closed-outline"
           label="Privacy Policy"
-          onPress={() => router.push('/(user)/privacy-policy')}
+          onPress={() => router.push('/privacy-policy')}
         />
 
         <ProfileMenuItem
           icon="help-circle-outline"
           label="Help Center"
-          onPress={() => router.push('/(user)/help-center')}
+          onPress={() => router.push('/help-center')}
         />
 
         {/* Admin shortcut — only visible to admin-role users */}
