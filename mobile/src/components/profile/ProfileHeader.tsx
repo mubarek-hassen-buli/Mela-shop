@@ -5,12 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 
 interface ProfileHeaderProps {
-  /** User's avatar URL */
+  /** User's avatar URL — falls back to a person icon placeholder */
   avatarUrl?: string;
   /** Full name to display */
   fullName: string;
-  /** Phone number to display */
-  phoneNumber: string;
+  /** Email address shown below the name */
+  email: string;
   /** Called when the camera/edit badge is pressed */
   onEditAvatar?: () => void;
   /** Called when the "more" button (top-right) is pressed */
@@ -20,18 +20,18 @@ interface ProfileHeaderProps {
 /**
  * Top section of the Profile screen — shows the brand logo (left),
  * a "more" button (top-right), the circular user avatar with an
- * edit badge overlay, and the user's name and phone number.
+ * edit badge overlay, and the user's name and email.
  */
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   avatarUrl,
   fullName,
-  phoneNumber,
+  email,
   onEditAvatar,
   onMorePress,
 }) => {
   return (
     <View style={styles.wrapper}>
-      {/* Top row: "Profile" title + More button */}
+      {/* Top row: title + More button */}
       <View style={styles.topRow}>
         <View style={styles.titleRow}>
           <View style={styles.logoBadge}>
@@ -45,11 +45,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           activeOpacity={0.7}
           onPress={onMorePress}
         >
-          <Ionicons
-            name="ellipsis-horizontal"
-            size={20}
-            color={COLORS.black}
-          />
+          <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.black} />
         </TouchableOpacity>
       </View>
 
@@ -65,11 +61,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             />
           ) : (
             <View style={styles.avatarPlaceholder}>
-              <Ionicons
-                name="person"
-                size={48}
-                color={COLORS.text.tertiary}
-              />
+              <Ionicons name="person" size={48} color={COLORS.text.tertiary} />
             </View>
           )}
         </View>
@@ -84,9 +76,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Name + Phone */}
+      {/* Name + Email */}
       <Text style={styles.fullName}>{fullName}</Text>
-      <Text style={styles.phoneNumber}>{phoneNumber}</Text>
+      <Text style={styles.email}>{email}</Text>
     </View>
   );
 };
@@ -177,7 +169,7 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     marginBottom: 4,
   },
-  phoneNumber: {
+  email: {
     fontSize: 14,
     fontWeight: '400',
     color: COLORS.text.secondary,
