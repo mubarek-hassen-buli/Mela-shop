@@ -7,9 +7,12 @@ import { getMe } from '@/api/users.api';
  * useCurrentUser — TanStack Query hook that fetches and caches the
  * current user's profile from the backend.
  *
- * - Only runs when the user is signed into Clerk
- * - Keeps the Zustand auth store in sync on successful fetch
- * - Returns { user, isLoading, isError, refetch }
+ * Key cache settings:
+ * - staleTime: 5 min  — data is considered fresh, no background refetch
+ * - gcTime: 0         — once the profile screen unmounts (e.g. on logout),
+ *                       the cache entry is garbage-collected immediately.
+ *                       This ensures the next user who signs in never sees
+ *                       a previous user's cached data.
  */
 export function useCurrentUser() {
   const { isSignedIn, getToken } = useAuth();
@@ -18,7 +21,8 @@ export function useCurrentUser() {
   const query = useQuery({
     queryKey: ['users', 'me'],
     enabled: !!isSignedIn,
-    staleTime: 5 * 60 * 1000, // 5 min — profile doesn't change often
+    staleTime: 5 * 60 * 1000,
+    gcTime: 0, // Garbage-collect immediately on unmount — no cross-session data leaks
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('No auth token');
@@ -31,7 +35,7 @@ export function useCurrentUser() {
 
   return {
     // Prefer TanStack's fresh data, fall back to Zustand store (persisted
-    // across renders while query is still loading)
+    // across renders while the query is still loading)
     user: query.data ?? storeUser,
     isLoading: query.isLoading,
     isError: query.isError,

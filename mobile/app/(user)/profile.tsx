@@ -1,50 +1,38 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   ScrollView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/common/ScreenWrapper';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileMenuItem } from '@/components/profile/ProfileMenuItem';
 import { useAuthStore } from '@/store/auth.store';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useLogout } from '@/hooks/useLogout';
 import { COLORS } from '@/constants/colors';
 
 /**
  * Profile screen — displays the authenticated user's avatar, name,
  * email and a list of settings/navigation items.
  *
- * Data source: useCurrentUser() (TanStack Query + Zustand store)
+ * Logout is handled by useLogout() which:
+ * - clears TanStack Query cache (prevents stale data for next user)
+ * - clears Zustand store
+ * - calls Clerk signOut()
+ * - navigates to onboarding
  */
 export default function ProfileScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
-  const { role, clearAuth } = useAuthStore();
+  const { role } = useAuthStore();
   const { user, isLoading } = useCurrentUser();
+  const { confirmLogout, loading: logoutLoading } = useLogout();
   const [isDarkMode, setIsDarkMode] = useState(false);
-
-  const handleLogout = useCallback(() => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          clearAuth();
-          router.replace('/(auth)/onboarding');
-        },
-      },
-    ]);
-  }, [signOut, clearAuth, router]);
 
   return (
     <ScreenWrapper>
@@ -110,12 +98,19 @@ export default function ProfileScreen() {
         <TouchableOpacity
           style={styles.logoutButton}
           activeOpacity={0.6}
-          onPress={handleLogout}
+          onPress={confirmLogout}
+          disabled={logoutLoading}
         >
           <View style={styles.logoutIconWrapper}>
-            <Ionicons name="log-out-outline" size={22} color={COLORS.error} />
+            {logoutLoading ? (
+              <ActivityIndicator size="small" color={COLORS.error} />
+            ) : (
+              <Ionicons name="log-out-outline" size={22} color={COLORS.error} />
+            )}
           </View>
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>
+            {logoutLoading ? 'Signing out…' : 'Logout'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </ScreenWrapper>

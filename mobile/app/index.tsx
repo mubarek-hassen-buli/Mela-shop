@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/expo';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth.store';
 import { getMe } from '@/api/users.api';
 import { COLORS } from '@/constants/colors';
@@ -10,14 +11,19 @@ import { COLORS } from '@/constants/colors';
  * App entry point — auth-aware router.
  *
  * 1. Not signed in → onboarding
- * 2. Signed in → fetch user profile from backend → route by role
- *    - role=admin → /(admin)
- *    - role=user  → /(user)
+ * 2. Signed in     → remove any stale query cache from a previous session
+ *                  → fetch fresh user profile from backend
+ *                  → route by role (admin → /(admin), user → /(user))
+ *
+ * The queryClient.removeQueries() call is the belt-and-suspenders defence:
+ * even if gcTime hasn't fired yet after a logout, the new user always
+ * starts with a clean slate before their profile is fetched.
  */
 export default function Index() {
   const router = useRouter();
   const { isSignedIn, isLoaded, getToken } = useAuth();
   const { setAuth, setHydrated } = useAuthStore();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -27,7 +33,6 @@ export default function Index() {
       return;
     }
 
-    // User is signed in — fetch their profile + role from the backend
     const fetchUser = async () => {
       try {
         const token = await getToken();
@@ -35,6 +40,9 @@ export default function Index() {
           router.replace('/(auth)/onboarding');
           return;
         }
+
+        // Remove any cached profile from a previous session before fetching
+        queryClient.removeQueries({ queryKey: ['users', 'me'] });
 
         const user = await getMe(token);
         setAuth(user);
@@ -47,8 +55,6 @@ export default function Index() {
           router.replace('/(user)');
         }
       } catch (error) {
-        // If user doesn't exist in our DB yet (webhook hasn't fired),
-        // default to the user role — webhook will sync soon
         console.warn('Failed to fetch user profile:', error);
         setHydrated();
         router.replace('/(user)');
@@ -58,7 +64,6 @@ export default function Index() {
     fetchUser();
   }, [isLoaded, isSignedIn]);
 
-  // Show loading spinner while Clerk checks session
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={COLORS.black} />
